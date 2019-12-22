@@ -7,12 +7,15 @@ import {
     Text,
     Alert,
     PermissionsAndroid,
+    ToastAndroid
 } from 'react-native';
 import {BleManager} from 'react-native-ble-plx';
+import {NativeModules} from 'react-native';
+const DirectSms = NativeModules.DirectSms;
 
 const BLEManager = new BleManager();
 
-const charUUID = '0000fff1-0000-1000-8000-00805f9b34fb';
+const charUUID = '0000fff4-0000-1000-8000-00805f9b34fb';
 
 
 
@@ -20,38 +23,42 @@ const App: () => React$Node = () => {
     const [foundMyDevice, setFoundMyDevice] = useState(false);
     const [char, setChar] = useState('');
 
-
     const addDevice = (err, device) => {
         if (err) {
             Alert.alert('Error', err.message);
         }
-        if (device && device.name && device.name.toLowerCase() === 'lrrm') {
+        if (device && device.name) {
             setFoundMyDevice(true);
 
-            device.connect().then(async device => {
-                let fullDevice = await device.discoverAllServicesAndCharacteristics();
-                let services = await fullDevice.services();
-                for( let service of services){
-                    let chars = await service.characteristics();
+            ToastAndroid.showWithGravity('Found LRRM', ToastAndroid.SHORT, ToastAndroid.CENTER)
 
-                    if(chars.some( x => x.uuid === charUUID)){
-                        console.warn('Found char!')
-                        let myChar = chars.find(x => x.uuid === charUUID)
-                        myChar = await myChar.read();
-                        setChar(myChar.value);
-                        setInterval(async () => {
-                            console.warn('Reading char again')
-                            let yayChar = await myChar.read();
-                            setChar(yayChar.value)
-                        },1000);
-                        console.warn('Started monitoring char')
+            if (device.name.toLowerCase() === 'lrrm') {
+                device.connect().then(async device => {
+                    let fullDevice = await device.discoverAllServicesAndCharacteristics();
+                    let services = await fullDevice.services();
+                    for (let service of services) {
+                        let chars = await service.characteristics();
+
+                        if (chars.some(x => x.uuid === charUUID)) {
+                            console.warn('Found char!');
+                            let myChar = chars.find(x => x.uuid === charUUID);
+                            setChar(myChar.value)
+                            myChar.monitor((err, char) => {
+                                console.warn('Sending SMS')
+                                try {
+                                    DirectSms.sendDirectSms('+972502733733', 'שלחתי SMS מצוקה!');
+                                } catch (e) {
+                                    console.error(e)
+                                }
+                            })
+                        }
+
+
                     }
-
-
-                }
-            }).catch(err => Alert.alert('Error', err.message));
+                }).catch(err => Alert.alert('Error', err.message));
+            }
+            BLEManager.stopDeviceScan();
         }
-        BLEManager.stopDeviceScan();
     };
 
     const startScan = async () => {
@@ -61,6 +68,10 @@ const App: () => React$Node = () => {
         await PermissionsAndroid.request(
             PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         );
+        await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.SEND_SMS
+        );
+
         BLEManager.startDeviceScan(null, null, addDevice);
     };
     return (
