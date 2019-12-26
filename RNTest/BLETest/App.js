@@ -7,10 +7,14 @@ import {
     Text,
     Alert,
     PermissionsAndroid,
-    ToastAndroid
+    ToastAndroid,
+    AsyncStorage,
+    TextInput
 } from 'react-native';
 import {BleManager} from 'react-native-ble-plx';
 import {NativeModules} from 'react-native';
+import { Component } from 'react';
+//import "storage-service" from services;
 const DirectSms = NativeModules.DirectSms;
 
 const BLEManager = new BleManager();
@@ -61,6 +65,27 @@ const App: () => React$Node = () => {
         }
     };
 
+    const addContact = async (contact) => {
+        console.warn('מוסיף איש קשר');
+        
+
+    };
+
+    function ContactsTextInput() {
+        const [value, onChangeText] = React.useState('contacts text input');}
+    
+
+    function ContactsTextInput(props) {
+        return (
+          <TextInput
+            {...props} // Inherit any props passed to it; e.g., multiline, numberOfLines below
+            editable
+            maxLength={15}
+          />
+        );
+      }
+      
+
     const startScan = async () => {
         await PermissionsAndroid.request(
             PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
@@ -80,8 +105,13 @@ const App: () => React$Node = () => {
             <SafeAreaView
                 style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
                 <Button title={'Scan'} onPress={startScan}/>
+                <ContactsTextInput
+                    onChangeText={text => onChangeText(text)}
+                    value={value}       
+                />
                 {foundMyDevice && <Text>Yay, I found LRRM</Text>}
                 <Text>Tracked char value is {char}</Text>
+                <Text>Number to send to: +972502733733!</Text>
             </SafeAreaView>
         </>
     );
