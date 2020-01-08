@@ -9,7 +9,6 @@ const DirectSms = NativeModules.DirectSms;
 
 
 
-
 const App: () => React$Node = () => {
     const [device, setDevice] = useState(null);
     const [found, setFound] = useState(false);
@@ -25,6 +24,16 @@ const App: () => React$Node = () => {
         setFound(true);
         BLE.stopScan();
     };
+
+    const addContact = async (contact) => {
+        console.warn('מוסיף איש קשר');
+        
+
+    };
+
+ 
+
+      
 
     const startScan = async () => {
        await BLE.scanForDevice(addDevice);
