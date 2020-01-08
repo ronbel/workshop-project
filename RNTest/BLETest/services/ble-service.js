@@ -36,5 +36,8 @@ export default class BLE{
         this.DeviceSub = discoveredDevice.monitorCharacteristicForService(SERVICE_UUID, CHAR_UUID, callback);
     }
 
+    static isPoweredOn = async () =>{
+        return ((await this.BLEManager.state())==="PoweredOn");  
+    }
 
 }
