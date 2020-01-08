@@ -12,7 +12,7 @@ const DirectSms = NativeModules.DirectSms;
 const App: () => React$Node = () => {
     const [device, setDevice] = useState(null);
     const [found, setFound] = useState(false);
-
+    const [blueError, setBlueError]  =useState(false);
 
 
     const addDevice = (err, device) => {
@@ -25,18 +25,15 @@ const App: () => React$Node = () => {
         BLE.stopScan();
     };
 
-    const addContact = async (contact) => {
-        console.warn('מוסיף איש קשר');
-        
-
-    };
-
- 
-
-      
 
     const startScan = async () => {
-       await BLE.scanForDevice(addDevice);
+       if(!(await BLE.isPoweredOn())){
+           setBlueError(true);
+            Alert.alert('Error', 'Your Bluetooth is turned off. Turn it on and try again!');
+            return;
+       }
+       setBlueError(false);
+        await BLE.scanForDevice(addDevice);
     };
 
     useEffect(startScan, []);
@@ -52,10 +49,14 @@ const App: () => React$Node = () => {
                                 <Text>We have found your device, would you like to connect to it?</Text>
                                 < Button title="Yalla!" onPress={() => {}}/>
                             </View> :
-                               <View>
+                               !blueError && <View>
                                    <Text>We are looking for devices</Text>
                                    <ActivityIndicator size="large"/>
                                </View>
+                        }
+                        {
+                            blueError && 
+                            <Button title="Retry" onPress={startScan}/>
                         }
                     </View>
 
