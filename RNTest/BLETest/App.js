@@ -1,6 +1,7 @@
 
 import React, {useState} from 'react';
 import {
+    View,
     SafeAreaView,
     Button,
     StatusBar,
@@ -14,7 +15,7 @@ import {
 import {BleManager} from 'react-native-ble-plx';
 import {NativeModules} from 'react-native';
 import { Component } from 'react';
-//import "storage-service" from services;
+import Storage from './services/storage-service'
 const DirectSms = NativeModules.DirectSms;
 
 const BLEManager = new BleManager();
@@ -22,11 +23,10 @@ const BLEManager = new BleManager();
 const charUUID = '0000fff4-0000-1000-8000-00805f9b34fb';
 
 
-
 const App: () => React$Node = () => {
     const [foundMyDevice, setFoundMyDevice] = useState(false);
     const [char, setChar] = useState('');
-
+    const [value, setValue] = useState('');
     const addDevice = (err, device) => {
         if (err) {
             Alert.alert('Error', err.message);
@@ -71,19 +71,8 @@ const App: () => React$Node = () => {
 
     };
 
-    function ContactsTextInput() {
-        const [value, onChangeText] = React.useState('contacts text input');}
-    
+ 
 
-    function ContactsTextInput(props) {
-        return (
-          <TextInput
-            {...props} // Inherit any props passed to it; e.g., multiline, numberOfLines below
-            editable
-            maxLength={15}
-          />
-        );
-      }
       
 
     const startScan = async () => {
@@ -105,11 +94,15 @@ const App: () => React$Node = () => {
             <SafeAreaView
                 style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
                 <Button title={'Scan'} onPress={startScan}/>
-                <ContactsTextInput
-                    onChangeText={text => onChangeText(text)}
+                <TextInput
+                    style={{width:300, height:50, borderWidth:1}}
+                    onChangeText={setValue}
                     value={value}       
                 />
-                {foundMyDevice && <Text>Yay, I found LRRM</Text>}
+                <View style={{height:100, justifyContent: 'space-between'}}>
+                <Button title={'Add contact'} onPress={() =>Storage.set_contact(value)}/>
+                <Button title={'Get contacts'} onPress={() => Storage.get_contacts().then(res => console.warn(res))}/>
+                </View>
                 <Text>Tracked char value is {char}</Text>
                 <Text>Number to send to: +972502733733!</Text>
             </SafeAreaView>
