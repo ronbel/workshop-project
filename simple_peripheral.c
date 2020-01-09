@@ -48,7 +48,12 @@
 /*********************************************************************
  * INCLUDES
  */
+
+/*  BMI + PSD   */
+//#include "sys/types.h" // this is instead of including unistd.h
+#include <ti/posix/ccs/unistd.h>
 #include <string.h>
+/*  BMI + PSD   */
 
 #include <ti/sysbios/knl/Task.h>
 #include <ti/sysbios/knl/Clock.h>
@@ -94,6 +99,7 @@
 /*  BMI160  */
 #include "bmi160_defs.h"
 #include "bmi160.h"
+#include <ti/drivers/I2C.h>
 /*  BMI160  */
 
 #if defined( USE_FPGA ) || defined( DEBUG_SW_TRACE )
@@ -360,6 +366,80 @@ void CreatePanic(void){
     new_value = new_value + 1;
 }
 
+void user_delay_ms(uint32_t period){ // just added - build and check
+    usleep(period*1000);
+}
+
+int8_t user_i2c_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len){
+    I2C_Handle handle;
+    I2C_Params params;
+    I2C_Transaction i2cTrans;
+    uint8_t *rxBuf/*[len]*/ = data;      // Receive buffer
+    uint8_t txBuf[1];               // Transmit buffer
+
+    // Configure I2C parameters.
+    I2C_Params_init(&params);
+
+    params.bitRate = I2C_100kHz; // we just went for the default
+    handle = I2C_open(Board_I2C_TMP, &params); // board_i2c_tmp and board_i2c0 seem to be the only options and defined the same way
+
+    if (handle == NULL){ // i2c open failed :(
+        // we can try to write to char2 for instance some value indicating the error (using simpleprofile..setparam..)
+        // we don't do this now because we are worried that it will lead to errors since simpleprofile might be defined later
+    }
+
+    txBuf[0] = reg_addr; // we assume there is no need to transmit the slave address first
+
+    // Initialize master I2C transaction structure
+    i2cTrans.writeCount   = 1;
+    i2cTrans.writeBuf     = txBuf;
+    i2cTrans.readCount    = len;
+    i2cTrans.readBuf      = rxBuf;
+    i2cTrans.slaveAddress = (dev_addr << 1) + 0; // we assume device (slave) address is 0x68 and add a 0 bit from the right
+
+    // Do I2C transfer receive
+    I2C_transfer(handle, &i2cTrans);
+
+    return 0; // don't think it matters much what we return
+}
+
+int8_t user_i2c_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len){
+    I2C_Handle handle;
+    I2C_Params params;
+    I2C_Transaction i2cTrans;
+    uint8_t rxBuf[1];       // Receive buffer - not used here
+    uint8_t txBuf[len+1];   // Transmit buffer - we add one byte for the register address
+
+    // Configure I2C parameters.
+    I2C_Params_init(&params);
+
+    params.bitRate = I2C_100kHz; // we just went for the default
+    handle = I2C_open(Board_I2C_TMP, &params); // board_i2c_tmp and board_i2c0 seem to be the only options and defined the same way
+
+    if (handle == NULL){ // i2c open failed :(
+        // we can try to write to char2 for instance some value indicating the error (using simpleprofile..setparam..)
+        // we don't do this now because we are worried that it will lead to errors since simpleprofile might be defined later
+    }
+
+    txBuf[0] = reg_addr;
+
+    for (int i=1; i<=len; i++){ // copy data we want to transmit to txBuf
+        txBuf[i] = data[i-1];
+    }
+
+    // Initialize master I2C transaction structure
+    i2cTrans.writeCount   = 1+len;
+    i2cTrans.writeBuf     = txBuf;
+    i2cTrans.readCount    = 0;
+    i2cTrans.readBuf      = rxBuf;
+    i2cTrans.slaveAddress = (dev_addr << 1) + 1; // we assume device (slave) address is 0x68 and add a 1 bit from the right
+
+    // Do I2C transfer receive
+    I2C_transfer(handle, &i2cTrans);
+
+    return 0; // don't think it matters much what we return
+}
+
 /*  BMI + PSD   */
 
 /*  PSD */
@@ -493,11 +573,13 @@ void SimpleBLEPeripheral_createTask(void)
 
   /*    BMI160  */
 
+  I2C_init();
+
   sensor.id = BMI160_I2C_ADDR;
   sensor.interface = BMI160_I2C_INTF;
-  sensor.read = user_i2c_read;
-  sensor.write = user_i2c_write;
-  sensor.delay_ms = user_delay_ms;
+  sensor.read = &user_i2c_read;
+  sensor.write = &user_i2c_write;
+  sensor.delay_ms = &user_delay_ms;
 
   rslt = BMI160_OK;
   rslt = bmi160_init(&sensor);
@@ -517,6 +599,23 @@ void SimpleBLEPeripheral_createTask(void)
   rslt = BMI160_OK;
   /* Set the sensor configuration */
   rslt = bmi160_set_sens_conf(&sensor);
+
+  /*    READ CHIP ID FROM SENSOR    */
+
+  while (true){
+      uint8_t reg_addr = BMI160_CHIP_ID_ADDR;
+      uint8_t data;
+      uint16_t len = 1;
+      rslt = bmi160_get_regs(reg_addr, &data, len, &sensor);
+
+      //    write chip id to characteristic 2
+      SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
+                                     &data);
+
+      sleep(5);
+  }
+
+  /*    READ CHIP ID FROM SENSOR    */
 
   /* Select the Interrupt channel/pin */
   int_config.int_channel = BMI160_INT_CHANNEL_1;// Interrupt channel/pin 1
@@ -1303,7 +1402,7 @@ static void SimpleBLEPeripheral_performPeriodicTask(void)
     rslt = bmi160_get_int_status(int_status_sel, &inter, &sensor);
 
     if (inter.bit.step){ // identified a step
-        curr_num_idle_seconds = 0;
+        curr_num_idle_seconds = 0; // should the interrupt also be reset ?
     }
     else{ // no step was identified
         curr_num_idle_seconds = curr_num_idle_seconds + 1;
