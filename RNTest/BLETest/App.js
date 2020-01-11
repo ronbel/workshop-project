@@ -2,7 +2,6 @@ import React, {useState, useEffect} from 'react';
 import {Alert, Button, NativeModules, PermissionsAndroid, SafeAreaView, StatusBar, ToastAndroid, View, Text, ActivityIndicator} from 'react-native';
 import BLE from './services/ble-service';
 
-const DirectSms = NativeModules.DirectSms;
 
 
 
@@ -36,18 +35,18 @@ const App: () => React$Node = () => {
         await BLE.scanForDevice(addDevice);
     };
 
-    useEffect(startScan, []);
+    useEffect(() => {startScan()}, []);
 
     return (
         <>
             <StatusBar barStyle="dark-content"/>
             <SafeAreaView
                 style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-                    <View>
+                    <View style={{paddingHorizontal: 30}}>
                         {
                            found ? <View>
                                 <Text>We have found your device, would you like to connect to it?</Text>
-                                < Button title="Yalla!" onPress={() => {}}/>
+                                <Button title="Yalla!"/>
                             </View> :
                                !blueError && <View>
                                    <Text>We are looking for devices</Text>
@@ -55,11 +54,10 @@ const App: () => React$Node = () => {
                                </View>
                         }
                         {
-                            blueError && 
+                            blueError &&
                             <Button title="Retry" onPress={startScan}/>
                         }
                     </View>
-
             </SafeAreaView>
         </>
     );
