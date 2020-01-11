@@ -366,11 +366,15 @@ void CreatePanic(void){
     new_value = new_value + 1;
 }
 
-void user_delay_ms(uint32_t period){ // just added - build and check
+void user_delay_ms(uint32_t period){ // period is given in ms, multiply by 1000 to get us
     usleep(period*1000);
 }
 
 int8_t user_i2c_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len){
+    // note that we initialize these variables, and more importantly open/close I2C HW every time
+    // we make a transaction - this might be problematic, if so change some of these to global and use
+    // I2C_open once from createTask for instance
+
     I2C_Handle handle;
     I2C_Params params;
     I2C_Transaction i2cTrans;
@@ -399,6 +403,8 @@ int8_t user_i2c_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t
 
     // Do I2C transfer receive
     I2C_transfer(handle, &i2cTrans);
+
+    I2C_close(handle);
 
     return 0; // don't think it matters much what we return
 }
@@ -436,6 +442,8 @@ int8_t user_i2c_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_
 
     // Do I2C transfer receive
     I2C_transfer(handle, &i2cTrans);
+
+    I2C_close(handle);
 
     return 0; // don't think it matters much what we return
 }
@@ -599,23 +607,6 @@ void SimpleBLEPeripheral_createTask(void)
   rslt = BMI160_OK;
   /* Set the sensor configuration */
   rslt = bmi160_set_sens_conf(&sensor);
-
-  /*    READ CHIP ID FROM SENSOR    */
-
-  while (true){
-      uint8_t reg_addr = BMI160_CHIP_ID_ADDR;
-      uint8_t data;
-      uint16_t len = 1;
-      rslt = bmi160_get_regs(reg_addr, &data, len, &sensor);
-
-      //    write chip id to characteristic 2
-      SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
-                                     &data);
-
-      sleep(5);
-  }
-
-  /*    READ CHIP ID FROM SENSOR    */
 
   /* Select the Interrupt channel/pin */
   int_config.int_channel = BMI160_INT_CHANNEL_1;// Interrupt channel/pin 1
@@ -1389,6 +1380,23 @@ static void SimpleBLEPeripheral_performPeriodicTask(void)
 {
 #ifndef FEATURE_OAD_ONCHIP
     uint8_t curr_value_of_char1;
+
+    /*    READ CHIP ID FROM SENSOR    */
+
+      while (true){
+          uint8_t reg_addr = BMI160_CHIP_ID_ADDR;
+          uint8_t data;
+          uint16_t len = 1;
+          rslt = bmi160_get_regs(reg_addr, &data, len, &sensor);
+
+          //    write chip id to characteristic 2
+          SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
+                                         &data);
+
+          sleep(5);
+      }
+
+      /*    READ CHIP ID FROM SENSOR    */
 
     // Check whether char1 value changed, meaning that the app wrote a new value for the num
     // of idle minutes
