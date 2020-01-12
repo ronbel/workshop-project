@@ -15,7 +15,7 @@ export default function Contacts() {
     useEffect(() => {
         Promise.all([getContacts(), Storage.get_contacts()]).then(res => {
             setContactList(res[0]);
-            setSelectedContacts(res[1]);
+            setSelectedContacts(res[1]||[]);
             setIsReady(true);
         })
     }, []);
