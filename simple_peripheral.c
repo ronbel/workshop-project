@@ -100,6 +100,7 @@
 #include "bmi160_defs.h"
 #include "bmi160.h"
 #include <ti/drivers/I2C.h>
+#include <ti/drivers/GPIO.h>
 /*  BMI160  */
 
 #if defined( USE_FPGA ) || defined( DEBUG_SW_TRACE )
@@ -156,7 +157,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // How often to perform periodic event (in msec)
-#define SBP_PERIODIC_EVT_PERIOD               1000
+#define SBP_PERIODIC_EVT_PERIOD               5000
 
 // Type of Display to open
 #if !defined(Display_DISABLE_ALL)
@@ -249,6 +250,8 @@ union bmi160_int_status inter;
 
 /* Interrupt status selection to read all interrupts */
 enum bmi160_int_status_sel int_status_sel = BMI160_INT_STATUS_ALL;
+
+int initialized_bmi160 = 0;
 
 /*  BMI160  */
 
@@ -371,22 +374,18 @@ void user_delay_ms(uint32_t period){ // period is given in ms, multiply by 1000 
 }
 
 int8_t user_i2c_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len){
-    // note that we initialize these variables, and more importantly open/close I2C HW every time
-    // we make a transaction - this might be problematic, if so change some of these to global and use
-    // I2C_open once from createTask for instance
 
     I2C_Handle handle;
-    I2C_Params params;
     I2C_Transaction i2cTrans;
-    uint8_t *rxBuf/*[len]*/ = data;      // Receive buffer
+    I2C_Params params;
     uint8_t txBuf[1];               // Transmit buffer
+    uint8_t rxBuf[len];
 
     // Configure I2C parameters.
     I2C_Params_init(&params);
+    params.bitRate = I2C_400kHz;
 
-    params.bitRate = I2C_100kHz; // we just went for the default
     handle = I2C_open(Board_I2C_TMP, &params); // board_i2c_tmp and board_i2c0 seem to be the only options and defined the same way
-
     if (handle == NULL){ // i2c open failed :(
         // we can try to write to char2 for instance some value indicating the error (using simpleprofile..setparam..)
         // we don't do this now because we are worried that it will lead to errors since simpleprofile might be defined later
@@ -399,10 +398,21 @@ int8_t user_i2c_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t
     i2cTrans.writeBuf     = txBuf;
     i2cTrans.readCount    = len;
     i2cTrans.readBuf      = rxBuf;
-    i2cTrans.slaveAddress = (dev_addr << 1) + 0; // we assume device (slave) address is 0x68 and add a 0 bit from the right
+
+    for (int i=0; i<len; i++){ // copy data we read to data variable
+        data[i] = rxBuf[i];
+    }
+
+    i2cTrans.slaveAddress = dev_addr; // we can hardcode to 0x68
 
     // Do I2C transfer receive
-    I2C_transfer(handle, &i2cTrans);
+    if (!I2C_transfer(handle, &i2cTrans)) {
+        /* Not ADDR1, try ADDR2 */
+        i2cTrans.slaveAddress = 0x69;
+        if (!I2C_transfer(handle, &i2cTrans)) {
+            return 1;
+        }
+    }
 
     I2C_close(handle);
 
@@ -410,18 +420,16 @@ int8_t user_i2c_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t
 }
 
 int8_t user_i2c_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len){
-    I2C_Handle handle;
-    I2C_Params params;
     I2C_Transaction i2cTrans;
-    uint8_t rxBuf[1];       // Receive buffer - not used here
+    I2C_Params params;
+    I2C_Handle handle;
     uint8_t txBuf[len+1];   // Transmit buffer - we add one byte for the register address
 
     // Configure I2C parameters.
     I2C_Params_init(&params);
+    params.bitRate = I2C_400kHz;
 
-    params.bitRate = I2C_100kHz; // we just went for the default
     handle = I2C_open(Board_I2C_TMP, &params); // board_i2c_tmp and board_i2c0 seem to be the only options and defined the same way
-
     if (handle == NULL){ // i2c open failed :(
         // we can try to write to char2 for instance some value indicating the error (using simpleprofile..setparam..)
         // we don't do this now because we are worried that it will lead to errors since simpleprofile might be defined later
@@ -437,11 +445,17 @@ int8_t user_i2c_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_
     i2cTrans.writeCount   = 1+len;
     i2cTrans.writeBuf     = txBuf;
     i2cTrans.readCount    = 0;
-    i2cTrans.readBuf      = rxBuf;
-    i2cTrans.slaveAddress = (dev_addr << 1) + 1; // we assume device (slave) address is 0x68 and add a 1 bit from the right
+    i2cTrans.readBuf      = NULL;
+
+    i2cTrans.slaveAddress = dev_addr;
 
     // Do I2C transfer receive
-    I2C_transfer(handle, &i2cTrans);
+    if (!I2C_transfer(handle, &i2cTrans)){
+        i2cTrans.slaveAddress = 0x69;
+        if(!I2C_transfer(handle, &i2cTrans)){
+            return 1;
+        }
+    }
 
     I2C_close(handle);
 
@@ -581,52 +595,53 @@ void SimpleBLEPeripheral_createTask(void)
 
   /*    BMI160  */
 
+  GPIO_init();
   I2C_init();
 
   sensor.id = BMI160_I2C_ADDR;
   sensor.interface = BMI160_I2C_INTF;
-  sensor.read = &user_i2c_read;
-  sensor.write = &user_i2c_write;
-  sensor.delay_ms = &user_delay_ms;
+  /*    WE MIGHT NEED TO ADD AN & BEFORE THE FOLLOWING user_.. BUT I WENT THROUGH THE CODE IN bmi160.c (bmi160_init and
+   *    bmi160_get_regs) AND IT SEEMS THAT THIS IS THE RIGHT WAY TO GO:    */
+  sensor.read = user_i2c_read;
+  sensor.write = user_i2c_write;
+  sensor.delay_ms = user_delay_ms;
 
-  rslt = BMI160_OK;
-  rslt = bmi160_init(&sensor);
   /* After the above function call, accel and gyro parameters in the device structure
   are set with default values, found in the datasheet of the sensor */
 
   /* Select the Output data rate, range of accelerometer sensor */
-  sensor.accel_cfg.odr = BMI160_ACCEL_ODR_1600HZ;
-  sensor.accel_cfg.range = BMI160_ACCEL_RANGE_2G;
-  sensor.accel_cfg.bw = BMI160_ACCEL_BW_NORMAL_AVG4;
+//  sensor.accel_cfg.odr = BMI160_ACCEL_ODR_1600HZ;
+//  sensor.accel_cfg.range = BMI160_ACCEL_RANGE_2G;
+//  sensor.accel_cfg.bw = BMI160_ACCEL_BW_NORMAL_AVG4;
 
   /* Select the power mode of accelerometer sensor */
-  sensor.accel_cfg.power = BMI160_ACCEL_NORMAL_MODE;
+//  sensor.accel_cfg.power = BMI160_ACCEL_NORMAL_MODE;
 
   /*    IF YOU WISH TO USE THE GYROSCOPE - INCLUDE RELEVANT CODE FROM README HERE   */
 
-  rslt = BMI160_OK;
+//  rslt = BMI160_OK;
   /* Set the sensor configuration */
-  rslt = bmi160_set_sens_conf(&sensor);
+//  rslt = bmi160_set_sens_conf(&sensor);
 
   /* Select the Interrupt channel/pin */
-  int_config.int_channel = BMI160_INT_CHANNEL_1;// Interrupt channel/pin 1
+//  int_config.int_channel = BMI160_INT_CHANNEL_1;// Interrupt channel/pin 1
 
   /* Select the Interrupt type */
-  int_config.int_type = BMI160_STEP_DETECT_INT;// Choosing Step Detector interrupt
+//  int_config.int_type = BMI160_STEP_DETECT_INT;// Choosing Step Detector interrupt
   /* Select the interrupt channel/pin settings */
-  int_config.int_pin_settg.output_en = BMI160_ENABLE;// Enabling interrupt pins to act as output pin
-  int_config.int_pin_settg.output_mode = BMI160_DISABLE;// Choosing push-pull mode for interrupt pin
-  int_config.int_pin_settg.output_type = BMI160_ENABLE;// Choosing active High output
-  int_config.int_pin_settg.edge_ctrl = BMI160_ENABLE;// Choosing edge triggered output
-  int_config.int_pin_settg.input_en = BMI160_DISABLE;// Disabling interrupt pin to act as input
-  int_config.int_pin_settg.latch_dur =BMI160_LATCH_DUR_NONE;// non-latched output
+//  int_config.int_pin_settg.output_en = BMI160_ENABLE;// Enabling interrupt pins to act as output pin
+//  int_config.int_pin_settg.output_mode = BMI160_DISABLE;// Choosing push-pull mode for interrupt pin
+//  int_config.int_pin_settg.output_type = BMI160_ENABLE;// Choosing active High output
+//  int_config.int_pin_settg.edge_ctrl = BMI160_ENABLE;// Choosing edge triggered output
+//  int_config.int_pin_settg.input_en = BMI160_DISABLE;// Disabling interrupt pin to act as input
+//  int_config.int_pin_settg.latch_dur =BMI160_LATCH_DUR_NONE;// non-latched output
 
   /* Select the Step Detector interrupt parameters, Kindly use the recommended settings for step detector */
-  int_config.int_type_cfg.acc_step_detect_int.step_detector_mode = BMI160_STEP_DETECT_NORMAL;
-  int_config.int_type_cfg.acc_step_detect_int.step_detector_en = BMI160_ENABLE;// 1-enable, 0-disable the step detector
+//  int_config.int_type_cfg.acc_step_detect_int.step_detector_mode = BMI160_STEP_DETECT_NORMAL;
+//  int_config.int_type_cfg.acc_step_detect_int.step_detector_en = BMI160_ENABLE;// 1-enable, 0-disable the step detector
 
   /* Set the Step Detector interrupt */
-  bmi160_set_int_config(&int_config, &sensor); /* sensor is an instance of the structure bmi160_dev */
+//  bmi160_set_int_config(&int_config, &sensor); /* sensor is an instance of the structure bmi160_dev */
 
   /*    BMI160  */
 
@@ -902,6 +917,7 @@ static void SimpleBLEPeripheral_taskFxn(UArg a0, UArg a1)
 
     if (events & SBP_PERIODIC_EVT)
     {
+
       events &= ~SBP_PERIODIC_EVT;
 
       Util_startClock(&periodicClock);
@@ -1379,46 +1395,53 @@ static void SimpleBLEPeripheral_processCharValueChangeEvt(uint8_t paramID)
 static void SimpleBLEPeripheral_performPeriodicTask(void)
 {
 #ifndef FEATURE_OAD_ONCHIP
-    uint8_t curr_value_of_char1;
+
+    if (!initialized_bmi160){
+      rslt = BMI160_OK;
+      rslt = bmi160_init(&sensor);  // -- this is where the crash happens
+      initialized_bmi160 = 1;
+    }
+//    uint8_t curr_value_of_char1;
 
     /*    READ CHIP ID FROM SENSOR    */
 
-      while (true){
-          uint8_t reg_addr = BMI160_CHIP_ID_ADDR;
-          uint8_t data;
-          uint16_t len = 1;
-          rslt = bmi160_get_regs(reg_addr, &data, len, &sensor);
-
+//      while (true){
+//          uint8_t reg_addr = BMI160_CHIP_ID_ADDR;
+//          uint8_t data;
+//          uint16_t len = 1;
+//          rslt = bmi160_get_regs(reg_addr, &data, len, &sensor);
+//
           //    write chip id to characteristic 2
-          SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
-                                         &data);
+//          SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
+//                                         &data);
 
-          sleep(5);
-      }
+//          sleep(5);
+//      }
 
       /*    READ CHIP ID FROM SENSOR    */
 
     // Check whether char1 value changed, meaning that the app wrote a new value for the num
     // of idle minutes
-    if ( SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR1, &curr_value_of_char1) == SUCCESS ){
-        if (curr_value_of_char1 != 1){
-            num_idle_minutes = curr_value_of_char1;
-            curr_num_idle_seconds = 0; // start counting from the beginning
-        }
-    }
+//    if ( SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR1, &curr_value_of_char1) == SUCCESS ){
+//        if (curr_value_of_char1 != 1){
+//            num_idle_minutes = curr_value_of_char1;
+//            curr_num_idle_seconds = 0; // start counting from the beginning
+//        }
+//    }
 
-    rslt = bmi160_get_int_status(int_status_sel, &inter, &sensor);
+//    rslt = bmi160_get_int_status(int_status_sel, &inter, &sensor);
 
-    if (inter.bit.step){ // identified a step
-        curr_num_idle_seconds = 0; // should the interrupt also be reset ?
-    }
-    else{ // no step was identified
-        curr_num_idle_seconds = curr_num_idle_seconds + 1;
-    }
+//    if (inter.bit.step){ // identified a step
+//        curr_num_idle_seconds = 0; // should the interrupt also be reset ?
+//    }
+//    else{ // no step was identified
+//        curr_num_idle_seconds = curr_num_idle_seconds + 1;
+//    }
 
-    if (curr_num_idle_seconds >= num_idle_minutes * 60){
-        CreatePanic();
-    }
+//    if (curr_num_idle_seconds >= num_idle_minutes * 60){
+//        CreatePanic();
+//    }
+
 
     if  (new_value != old_value){
         // Note that if notifications of the fourth characteristic have been
