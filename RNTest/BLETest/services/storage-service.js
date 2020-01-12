@@ -14,8 +14,6 @@ export default class StorageService{
         try {
           const value = JSON.parse(await AsyncStorage.getItem(key));
           if (value !== null) {
-            // We have data!!
-            console.warn(value);
             return value;
           }
         } catch (err) {
@@ -25,11 +23,11 @@ export default class StorageService{
 
     static set_contact=  async(contacts)=>{
       await  this._storeData("CONTACTS", contacts);
-    }
+    };
 
     static get_contacts = async()=>{
       return  await this._retrieveData("CONTACTS");
-    }
+    };
 
     static set_settings = async(settings)=>{
       await this._storeData("SETTINGS", settings);

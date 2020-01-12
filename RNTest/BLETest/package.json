@@ -15,7 +15,12 @@
     "react-native-ble-plx": "^1.1.0",
     "react-native-contacts": "^5.0.6",
     "react-native-countdown-component": "^2.6.0",
-    "react-native-geolocation-service": "^3.1.0"
+    "react-native-geolocation-service": "^3.1.0",
+    "react-native-gesture-handler": "^1.5.3",
+    "react-native-reanimated": "^1.4.0",
+    "react-navigation": "^4.0.10",
+    "react-navigation-stack": "^2.0.13",
+    "react-navigation-tabs": "^2.7.0"
   },
   "devDependencies": {
     "@babel/core": "7.7.4",

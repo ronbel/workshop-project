@@ -1,7 +1,9 @@
-import React, {useState} from 'react';
-import {Modal,Animated, View, Text, StyleSheet, Button, Alert} from 'react-native';
+import React from 'react';
+import {Modal, View, Text, StyleSheet, Button, Alert} from 'react-native';
 import CountDown from 'react-native-countdown-component';
 
+
+export const ModalContext = React.createContext(null);
 
 export default function TimerModal({visible, onFalseAlarmPress}) {
 
@@ -11,7 +13,7 @@ export default function TimerModal({visible, onFalseAlarmPress}) {
             <View style={styles.container}>
                 <View style={styles.box}>
                     <Text style={{fontSize: 20}}>Is Everything OK?</Text>
-                    <Text style={{textAlign: 'center'}}>We noticed you pressed the alarm button. Just to make sure, we're giving you a chance to inform us everything is OK and avoid false alrams</Text>
+                    <Text style={{textAlign: 'center'}}>We noticed you pressed the alarm button. Just to make sure, we're giving you a chance to inform us everything is OK and avoid false alarms</Text>
 
                     <CountDown timeLabels={{s: ''}} timeToShow={['S']} until={11} size={20} onFinish={() => Alert.alert('Ah shit!', 'Nigga in trouble, call the police')}/>
 
