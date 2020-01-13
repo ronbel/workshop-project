@@ -1,11 +1,31 @@
-import React from 'react';
+import React , {useState, useEffect} from 'react';
 import {Modal, View, Text, StyleSheet, Button, Alert} from 'react-native';
 import CountDown from 'react-native-countdown-component';
+import Storage from '../services/storage-service';
+import SMSService from '../services/SMS-service';
 
 
 export const ModalContext = React.createContext(null);
 
 export default function TimerModal({visible, onFalseAlarmPress}) {
+
+    const [secondsToWait, setSecondsToWait] = useState(0);
+
+    const onModalAppear = async () => {
+        const settings = await Storage.get_settings();
+        setSecondsToWait(settings.secondsToWait)
+    };
+
+    const onTimerFinished = async () => {
+        await SMSService.getAndSend();
+    };
+
+    useEffect(() => {
+        if(visible){
+            onModalAppear();
+        }
+    }, [visible]);
+
 
 
     return(
@@ -15,7 +35,7 @@ export default function TimerModal({visible, onFalseAlarmPress}) {
                     <Text style={{fontSize: 20}}>Is Everything OK?</Text>
                     <Text style={{textAlign: 'center'}}>We noticed you pressed the alarm button. Just to make sure, we're giving you a chance to inform us everything is OK and avoid false alarms</Text>
 
-                    <CountDown timeLabels={{s: ''}} timeToShow={['S']} until={11} size={20} onFinish={() => Alert.alert('Ah shit!', 'Nigga in trouble, call the police')}/>
+                    <CountDown timeLabels={{s: ''}} timeToShow={['S']} until={secondsToWait} size={20} onFinish={onTimerFinished}/>
 
                     <Button title="It's OK, false alarm!" onPress={onFalseAlarmPress}/>
 
