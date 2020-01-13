@@ -50,7 +50,6 @@
  */
 
 /*  BMI + PSD   */
-//#include "sys/types.h" // this is instead of including unistd.h
 #include <ti/posix/ccs/unistd.h>
 #include <string.h>
 /*  BMI + PSD   */
@@ -157,7 +156,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // How often to perform periodic event (in msec)
-#define SBP_PERIODIC_EVT_PERIOD               5000
+#define SBP_PERIODIC_EVT_PERIOD               1000
 
 // Type of Display to open
 #if !defined(Display_DISABLE_ALL)
@@ -250,8 +249,6 @@ union bmi160_int_status inter;
 
 /* Interrupt status selection to read all interrupts */
 enum bmi160_int_status_sel int_status_sel = BMI160_INT_STATUS_ALL;
-
-int initialized_bmi160 = 0;
 
 /*  BMI160  */
 
@@ -379,7 +376,8 @@ int8_t user_i2c_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t
     I2C_Transaction i2cTrans;
     I2C_Params params;
     uint8_t txBuf[1];               // Transmit buffer
-    uint8_t rxBuf[len];
+    uint8_t rxBuf[32];  // using len as the length of the array causes this to crash - I don't know why
+                        // 32 can turn to 255 if 32 is too small
 
     // Configure I2C parameters.
     I2C_Params_init(&params);
@@ -399,10 +397,6 @@ int8_t user_i2c_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t
     i2cTrans.readCount    = len;
     i2cTrans.readBuf      = rxBuf;
 
-    for (int i=0; i<len; i++){ // copy data we read to data variable
-        data[i] = rxBuf[i];
-    }
-
     i2cTrans.slaveAddress = dev_addr; // we can hardcode to 0x68
 
     // Do I2C transfer receive
@@ -414,6 +408,10 @@ int8_t user_i2c_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t
         }
     }
 
+    for (int i=0; i<len; i++){ // copy data we read to data variable
+        data[i] = rxBuf[i];
+    }
+
     I2C_close(handle);
 
     return 0; // don't think it matters much what we return
@@ -423,7 +421,9 @@ int8_t user_i2c_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_
     I2C_Transaction i2cTrans;
     I2C_Params params;
     I2C_Handle handle;
-    uint8_t txBuf[len+1];   // Transmit buffer - we add one byte for the register address
+    uint8_t txBuf[32+1];   // Transmit buffer - we add one byte for the register address
+                            // same issue as with user_i2c_read - once we set the array to be of size len it crashes
+                            // again, 32 can be changed to 255 in my opinion
 
     // Configure I2C parameters.
     I2C_Params_init(&params);
@@ -593,21 +593,7 @@ void SimpleBLEPeripheral_createTask(void)
   hButtonClock = Clock_handle(&buttonClock);
   /*    PSD */
 
-  /*    BMI160  */
 
-  GPIO_init();
-  I2C_init();
-
-  sensor.id = BMI160_I2C_ADDR;
-  sensor.interface = BMI160_I2C_INTF;
-  /*    WE MIGHT NEED TO ADD AN & BEFORE THE FOLLOWING user_.. BUT I WENT THROUGH THE CODE IN bmi160.c (bmi160_init and
-   *    bmi160_get_regs) AND IT SEEMS THAT THIS IS THE RIGHT WAY TO GO:    */
-  sensor.read = user_i2c_read;
-  sensor.write = user_i2c_write;
-  sensor.delay_ms = user_delay_ms;
-
-  /* After the above function call, accel and gyro parameters in the device structure
-  are set with default values, found in the datasheet of the sensor */
 
   /* Select the Output data rate, range of accelerometer sensor */
 //  sensor.accel_cfg.odr = BMI160_ACCEL_ODR_1600HZ;
@@ -851,7 +837,28 @@ static void SimpleBLEPeripheral_init(void)
  */
 static void SimpleBLEPeripheral_taskFxn(UArg a0, UArg a1)
 {
-  // Initialize application
+
+    /*    BMI160  */
+
+    GPIO_init();
+    I2C_init();
+
+    sensor.id = BMI160_I2C_ADDR;
+    sensor.interface = BMI160_I2C_INTF;
+    /*    WE MIGHT NEED TO ADD AN & BEFORE THE FOLLOWING user_.. BUT I WENT THROUGH THE CODE IN bmi160.c (bmi160_init and
+    *    bmi160_get_regs) AND IT SEEMS THAT THIS IS THE RIGHT WAY TO GO:    */
+    sensor.read = &user_i2c_read;
+    sensor.write = &user_i2c_write;
+    sensor.delay_ms = &user_delay_ms;
+
+    rslt = BMI160_OK;
+    rslt = bmi160_init(&sensor);  // -- this is where the crash happens
+    /* After the above function call, accel and gyro (?) parameters in the device structure
+    are set with default values, found in the datasheet of the sensor */
+
+    /*    BMI160  */
+
+    // Initialize application
   SimpleBLEPeripheral_init();
 
   // Application main loop
@@ -1395,30 +1402,21 @@ static void SimpleBLEPeripheral_processCharValueChangeEvt(uint8_t paramID)
 static void SimpleBLEPeripheral_performPeriodicTask(void)
 {
 #ifndef FEATURE_OAD_ONCHIP
-
-    if (!initialized_bmi160){
-      rslt = BMI160_OK;
-      rslt = bmi160_init(&sensor);  // -- this is where the crash happens
-      initialized_bmi160 = 1;
-    }
 //    uint8_t curr_value_of_char1;
 
     /*    READ CHIP ID FROM SENSOR    */
 
-//      while (true){
-//          uint8_t reg_addr = BMI160_CHIP_ID_ADDR;
-//          uint8_t data;
-//          uint16_t len = 1;
-//          rslt = bmi160_get_regs(reg_addr, &data, len, &sensor);
-//
-          //    write chip id to characteristic 2
-//          SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
-//                                         &data);
+    uint8_t reg_addr = BMI160_CHIP_ID_ADDR;
+    uint8_t data;
+    uint16_t len = 1;
+    rslt = bmi160_get_regs(reg_addr, &data, len, &sensor);
 
-//          sleep(5);
-//      }
+    //    write chip id to characteristic 2
+    SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
+                                     &data);
 
-      /*    READ CHIP ID FROM SENSOR    */
+
+    /*    READ CHIP ID FROM SENSOR    */
 
     // Check whether char1 value changed, meaning that the app wrote a new value for the num
     // of idle minutes
