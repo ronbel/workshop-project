@@ -156,7 +156,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // How often to perform periodic event (in msec)
-#define SBP_PERIODIC_EVT_PERIOD               1000
+#define SBP_PERIODIC_EVT_PERIOD               2000
 
 // Type of Display to open
 #if !defined(Display_DISABLE_ALL)
@@ -249,6 +249,14 @@ union bmi160_int_status inter;
 
 /* Interrupt status selection to read all interrupts */
 enum bmi160_int_status_sel int_status_sel = BMI160_INT_STATUS_ALL;
+
+uint8_t error = 66;
+
+int initialized_handle = 0;
+int initialized_params = 0;
+
+//I2C_Handle handle;
+I2C_Params params;
 
 /*  BMI160  */
 
@@ -372,22 +380,27 @@ void user_delay_ms(uint32_t period){ // period is given in ms, multiply by 1000 
 
 int8_t user_i2c_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len){
 
-    I2C_Handle handle;
     I2C_Transaction i2cTrans;
-    I2C_Params params;
+    I2C_Handle handle;
     uint8_t txBuf[1];               // Transmit buffer
     uint8_t rxBuf[32];  // using len as the length of the array causes this to crash - I don't know why
                         // 32 can turn to 255 if 32 is too small
 
     // Configure I2C parameters.
-    I2C_Params_init(&params);
-    params.bitRate = I2C_400kHz;
-
-    handle = I2C_open(Board_I2C_TMP, &params); // board_i2c_tmp and board_i2c0 seem to be the only options and defined the same way
-    if (handle == NULL){ // i2c open failed :(
-        // we can try to write to char2 for instance some value indicating the error (using simpleprofile..setparam..)
-        // we don't do this now because we are worried that it will lead to errors since simpleprofile might be defined later
+    if (!initialized_params){
+        I2C_Params_init(&params);
+        params.bitRate = I2C_400kHz;
+        initialized_params = 1;
     }
+
+    //if (!initialized_handle){
+        handle = I2C_open(Board_I2C_TMP, &params); // board_i2c_tmp and board_i2c0 seem to be the only options and defined the same way
+        if (handle == NULL){ // i2c open failed :(
+            // we can try to write to char2 for instance some value indicating the error (using simpleprofile..setparam..)
+            // we don't do this now because we are worried that it will lead to errors since simpleprofile might be defined later
+        }
+    //    initialized_handle = 1;
+    //}
 
     txBuf[0] = reg_addr; // we assume there is no need to transmit the slave address first
 
@@ -419,21 +432,26 @@ int8_t user_i2c_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t
 
 int8_t user_i2c_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len){
     I2C_Transaction i2cTrans;
-    I2C_Params params;
     I2C_Handle handle;
     uint8_t txBuf[32+1];   // Transmit buffer - we add one byte for the register address
                             // same issue as with user_i2c_read - once we set the array to be of size len it crashes
                             // again, 32 can be changed to 255 in my opinion
 
     // Configure I2C parameters.
-    I2C_Params_init(&params);
-    params.bitRate = I2C_400kHz;
-
-    handle = I2C_open(Board_I2C_TMP, &params); // board_i2c_tmp and board_i2c0 seem to be the only options and defined the same way
-    if (handle == NULL){ // i2c open failed :(
-        // we can try to write to char2 for instance some value indicating the error (using simpleprofile..setparam..)
-        // we don't do this now because we are worried that it will lead to errors since simpleprofile might be defined later
+    if (!initialized_params){
+        I2C_Params_init(&params);
+        params.bitRate = I2C_400kHz;
+        initialized_params = 1;
     }
+
+    //if (!initialized_handle){
+        handle = I2C_open(Board_I2C_TMP, &params); // board_i2c_tmp and board_i2c0 seem to be the only options and defined the same way
+        if (handle == NULL){ // i2c open failed :(
+            // we can try to write to char2 for instance some value indicating the error (using simpleprofile..setparam..)
+            // we don't do this now because we are worried that it will lead to errors since simpleprofile might be defined later
+        }
+    //    initialized_handle = 1;
+    //}
 
     txBuf[0] = reg_addr;
 
@@ -593,21 +611,6 @@ void SimpleBLEPeripheral_createTask(void)
   hButtonClock = Clock_handle(&buttonClock);
   /*    PSD */
 
-
-
-  /* Select the Output data rate, range of accelerometer sensor */
-//  sensor.accel_cfg.odr = BMI160_ACCEL_ODR_1600HZ;
-//  sensor.accel_cfg.range = BMI160_ACCEL_RANGE_2G;
-//  sensor.accel_cfg.bw = BMI160_ACCEL_BW_NORMAL_AVG4;
-
-  /* Select the power mode of accelerometer sensor */
-//  sensor.accel_cfg.power = BMI160_ACCEL_NORMAL_MODE;
-
-  /*    IF YOU WISH TO USE THE GYROSCOPE - INCLUDE RELEVANT CODE FROM README HERE   */
-
-//  rslt = BMI160_OK;
-  /* Set the sensor configuration */
-//  rslt = bmi160_set_sens_conf(&sensor);
 
   /* Select the Interrupt channel/pin */
 //  int_config.int_channel = BMI160_INT_CHANNEL_1;// Interrupt channel/pin 1
@@ -855,6 +858,20 @@ static void SimpleBLEPeripheral_taskFxn(UArg a0, UArg a1)
     rslt = bmi160_init(&sensor);  // -- this is where the crash happens
     /* After the above function call, accel and gyro (?) parameters in the device structure
     are set with default values, found in the datasheet of the sensor */
+
+    /* Select the Output data rate, range of accelerometer sensor */
+    sensor.accel_cfg.odr = BMI160_ACCEL_ODR_1600HZ;
+    sensor.accel_cfg.range = BMI160_ACCEL_RANGE_2G;
+    sensor.accel_cfg.bw = BMI160_ACCEL_BW_NORMAL_AVG4;
+
+    /* Select the power mode of accelerometer sensor */
+    sensor.accel_cfg.power = BMI160_ACCEL_NORMAL_MODE;
+
+    /*    IF YOU WISH TO USE THE GYROSCOPE - INCLUDE RELEVANT CODE FROM README HERE   */
+
+    rslt = BMI160_OK;
+    /* Set the sensor configuration */
+    rslt = bmi160_set_sens_conf(&sensor);
 
     /*    BMI160  */
 
@@ -1402,21 +1419,67 @@ static void SimpleBLEPeripheral_processCharValueChangeEvt(uint8_t paramID)
 static void SimpleBLEPeripheral_performPeriodicTask(void)
 {
 #ifndef FEATURE_OAD_ONCHIP
+
+    int8_t x, y, z;
 //    uint8_t curr_value_of_char1;
 
     /*    READ CHIP ID FROM SENSOR    */
 
-    uint8_t reg_addr = BMI160_CHIP_ID_ADDR;
-    uint8_t data;
-    uint16_t len = 1;
-    rslt = bmi160_get_regs(reg_addr, &data, len, &sensor);
+    //uint8_t reg_addr = BMI160_CHIP_ID_ADDR;
+    //uint8_t data;
+    //uint16_t len = 1;
+    //rslt = bmi160_get_regs(reg_addr, &data, len, &sensor);
 
     //    write chip id to characteristic 2
-    SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
-                                     &data);
+    //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
+    //                                 &data);
 
 
     /*    READ CHIP ID FROM SENSOR    */
+
+    /*  READ ACCELERATION DATA  FROM SENSOR   */
+    /* To read only Accel data */
+    rslt = bmi160_get_sensor_data(BMI160_ACCEL_SEL, &accel, NULL, &sensor);
+    if (rslt == BMI160_OK){
+        //x = (int8_t)(accel.x >> 8);
+        //y = (int8_t)(accel.y >> 8);
+        //z = (int8_t)(accel.z >> 8);
+
+        x = ((accel.x / ((float) 32768)) * 2 * 9.8);
+        y = ((accel.y / ((float) 32768)) * 2 * 9.8);
+        z = ((accel.z / ((float) 32768)) * 2 * 9.8);
+
+        if (x < 0){
+            x = x * -1;
+        }
+
+        if (y < 0){
+            y = y * -1;
+        }
+
+        if (z < 0){
+            z = z * -1;
+        }
+
+        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR1, sizeof(int8_t),
+                                           &(x));
+        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(int8_t),
+                                           &(y));
+        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(int8_t),
+                                           &(z));
+    }
+    else{
+
+        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR1, sizeof(uint8_t),
+                                                           &(error));
+        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
+                                                           &(error));
+        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(uint8_t),
+                                                           &(error));
+    }
+
+
+    /*  READ ACCELERATION DATA  FROM SENSOR   */
 
     // Check whether char1 value changed, meaning that the app wrote a new value for the num
     // of idle minutes
