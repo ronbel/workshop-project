@@ -260,6 +260,8 @@ int num_of_cycles_since_fall = 0;
 //I2C_Handle handle;
 I2C_Params params;
 
+#define CANCEL_PANIC 7
+
 /*  BMI160  */
 
 // Display Interface
@@ -1423,29 +1425,9 @@ static void SimpleBLEPeripheral_performPeriodicTask(void)
 #ifndef FEATURE_OAD_ONCHIP
 
     int8_t x, y, z;
-//    uint8_t curr_value_of_char1;
 
-    /*    READ CHIP ID FROM SENSOR    */
-
-    //uint8_t reg_addr = BMI160_CHIP_ID_ADDR;
-    //uint8_t data;
-    //uint16_t len = 1;
-    //rslt = bmi160_get_regs(reg_addr, &data, len, &sensor);
-
-    //    write chip id to characteristic 2
-    //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
-    //                                 &data);
-
-
-    /*    READ CHIP ID FROM SENSOR    */
-
-    /*  READ ACCELERATION DATA  FROM SENSOR   */
-    /* To read only Accel data */
     rslt = bmi160_get_sensor_data(BMI160_ACCEL_SEL, &accel, NULL, &sensor);
     if (rslt == BMI160_OK){
-        //x = (int8_t)(accel.x >> 8);
-        //y = (int8_t)(accel.y >> 8);
-        //z = (int8_t)(accel.z >> 8);
 
         x = ((accel.x / ((float) 32768)) * 2 * 9.8);
         y = ((accel.y / ((float) 32768)) * 2 * 9.8);
@@ -1463,31 +1445,22 @@ static void SimpleBLEPeripheral_performPeriodicTask(void)
             z = z * -1;
         }
 
-        //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR1, sizeof(int8_t),
-          //                                 &(x));
-        //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(int8_t),
-           //                                &(y));
-        //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(int8_t),
-          //                                 &(z));
-        if(z>=9 || x>=9){
-            if (num_of_cycles_since_fall == 0 || num_of_cycles_since_fall == 300){ // either first instance of falling or passed 10 mins from fall
+        if(z>=9 || x>=9){ // fall
+            if (num_of_cycles_since_fall == 0){ // first instance of falling since we got up
                 CreatePanic();
-                num_of_cycles_since_fall = 0;
+                num_of_cycles_since_fall++;
             }
-            num_of_cycles_since_fall++;
         }
-        else{
+        else{ // got back up
             num_of_cycles_since_fall = 0;
         }
     }
-    else{
+    else{ // bmi160 get sensor data failed
 
-        //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR1, sizeof(uint8_t),
-          //                                                 &(error));
-        //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
-        //                                                   &(error));
-        //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(uint8_t),
-        //                                                   &(error));
+        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR1, sizeof(uint8_t),
+                                                           &(error));
+        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
+                                                           &(error));
     }
 
 
