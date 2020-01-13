@@ -255,6 +255,8 @@ uint8_t error = 66;
 int initialized_handle = 0;
 int initialized_params = 0;
 
+int num_of_cycles_since_fall = 0;
+
 //I2C_Handle handle;
 I2C_Params params;
 
@@ -1461,21 +1463,31 @@ static void SimpleBLEPeripheral_performPeriodicTask(void)
             z = z * -1;
         }
 
-        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR1, sizeof(int8_t),
-                                           &(x));
-        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(int8_t),
-                                           &(y));
-        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(int8_t),
-                                           &(z));
+        //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR1, sizeof(int8_t),
+          //                                 &(x));
+        //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(int8_t),
+           //                                &(y));
+        //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(int8_t),
+          //                                 &(z));
+        if(z>=9 || x>=9){
+            if (num_of_cycles_since_fall == 0 || num_of_cycles_since_fall == 300){ // either first instance of falling or passed 10 mins from fall
+                CreatePanic();
+                num_of_cycles_since_fall = 0;
+            }
+            num_of_cycles_since_fall++;
+        }
+        else{
+            num_of_cycles_since_fall = 0;
+        }
     }
     else{
 
-        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR1, sizeof(uint8_t),
-                                                           &(error));
-        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
-                                                           &(error));
-        SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(uint8_t),
-                                                           &(error));
+        //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR1, sizeof(uint8_t),
+          //                                                 &(error));
+        //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR2, sizeof(uint8_t),
+        //                                                   &(error));
+        //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(uint8_t),
+        //                                                   &(error));
     }
 
 
