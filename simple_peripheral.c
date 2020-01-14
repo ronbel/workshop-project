@@ -156,7 +156,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // How often to perform periodic event (in msec)
-#define SBP_PERIODIC_EVT_PERIOD               2000
+#define SBP_PERIODIC_EVT_PERIOD               1000
 
 // Type of Display to open
 #if !defined(Display_DISABLE_ALL)
@@ -244,6 +244,8 @@ struct bmi160_int_settg int_config;
 
 int num_idle_minutes = DEFAULT_NUM_IDLE_MINUTES; // allowed num of idle minutes before entering panic state
 int curr_num_idle_seconds = 0;
+
+int idle = 0;
 
 union bmi160_int_status inter;
 
@@ -1425,6 +1427,7 @@ static void SimpleBLEPeripheral_performPeriodicTask(void)
 #ifndef FEATURE_OAD_ONCHIP
 
     int8_t x, y, z;
+    uint8_t curr_value_of_char1;
 
     rslt = bmi160_get_sensor_data(BMI160_ACCEL_SEL, &accel, NULL, &sensor);
     if (rslt == BMI160_OK){
@@ -1443,6 +1446,23 @@ static void SimpleBLEPeripheral_performPeriodicTask(void)
 
         if (z < 0){
             z = z * -1;
+        }
+
+        idle = (z>=9 && x<=1) || // lying down on back
+                (x>=9 && z<=1) || // lying down on side
+                (y<=8 && z>=2)  || // sitting at an angle
+                (y>=9 && z<=1); // sitting up straight
+
+        if (idle){
+            curr_num_idle_seconds = curr_num_idle_seconds + 1;
+        }
+        else{
+            curr_num_idle_seconds = 0;
+        }
+
+        if (curr_num_idle_seconds >= num_idle_minutes * 60){
+            CreatePanic();
+            curr_num_idle_seconds = 0;
         }
 
         if(z>=9 || x>=9){ // fall
@@ -1468,12 +1488,12 @@ static void SimpleBLEPeripheral_performPeriodicTask(void)
 
     // Check whether char1 value changed, meaning that the app wrote a new value for the num
     // of idle minutes
-//    if ( SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR1, &curr_value_of_char1) == SUCCESS ){
-//        if (curr_value_of_char1 != 1){
-//            num_idle_minutes = curr_value_of_char1;
-//            curr_num_idle_seconds = 0; // start counting from the beginning
-//        }
-//    }
+    if ( SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR1, &curr_value_of_char1) == SUCCESS ){
+        if (curr_value_of_char1 != 1){
+            num_idle_minutes = curr_value_of_char1;
+            curr_num_idle_seconds = 0; // start counting from the beginning
+        }
+    }
 
 //    rslt = bmi160_get_int_status(int_status_sel, &inter, &sensor);
 
