@@ -1,9 +1,20 @@
 import {BleManager} from "react-native-ble-plx";
 import {PermissionsAndroid} from 'react-native';
+import Storage from './storage-service';
+
 
 
 const SERVICE_UUID = '0000fff0-0000-1000-8000-00805f9b34fb';
 const CHAR_UUID = '0000fff4-0000-1000-8000-00805f9b34fb';
+const IDLE_MINUTES_CHAR = '0000fff1-0000-1000-8000-00805f9b34fb';
+
+const NUMBERS_IN_BASE_64 = {
+    15: 'Dw==',
+    30: 'Hg==',
+    60: 'PA==',
+    90: 'Wg==',
+    120: 'eA=='
+};
 
 
 export default class BLE{
@@ -32,12 +43,20 @@ export default class BLE{
     static connectAndMonitorDevice = async (device, callback) => {
         let connectedDevice = await device.connect();
         let discoveredDevice = await connectedDevice.discoverAllServicesAndCharacteristics();
-        this.BLEDevice = discoveredDevice;
-        this.DeviceSub = discoveredDevice.monitorCharacteristicForService(SERVICE_UUID, CHAR_UUID, callback);
-    }
+        BLE.BLEDevice = discoveredDevice;
+        BLE.DeviceSub = discoveredDevice.monitorCharacteristicForService(SERVICE_UUID, CHAR_UUID, callback);
+        let settings = await Storage.get_settings();
+        await discoveredDevice.writeCharacteristicWithResponseForService(SERVICE_UUID, IDLE_MINUTES_CHAR, NUMBERS_IN_BASE_64[settings.idleMinutes])
+    };
 
     static isPoweredOn = async () =>{
-        return ((await this.BLEManager.state())==="PoweredOn");  
+        return ((await this.BLEManager.state())==="PoweredOn");
+    };
+
+    static writeToIdleMinutesChar = async (minutes) => {
+        return BLE.BLEDevice.writeCharacteristicWithResponseForService(SERVICE_UUID, IDLE_MINUTES_CHAR, NUMBERS_IN_BASE_64[minutes]);
+
     }
+
 
 }

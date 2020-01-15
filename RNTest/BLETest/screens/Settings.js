@@ -4,6 +4,8 @@ import SettingsSection from '../components/SettingsSection';
 import NumericInput from 'react-native-numeric-input';
 import Storage from '../services/storage-service';
 import ModalDropdown from 'react-native-modal-dropdown';
+import BLE from '../services/ble-service';
+import LoadingModal from '../components/LoadingModal';
 
 
 export default function Settings() {
@@ -12,6 +14,7 @@ export default function Settings() {
     const [addLocation, setAddLocation] = useState(false);
     const [secondsToWait, setSecondsToWait] = useState(5);
     const [idleMinutes, setIdleMinutes] = useState(30);
+    const [isSaving, setIsSaving] = useState(false);
 
 
     useEffect(() => {
@@ -30,10 +33,14 @@ export default function Settings() {
             return;
         }
         try {
+            setIsSaving(true);
+            await BLE.writeToIdleMinutesChar(Number.parseInt(idleMinutes));
             await Storage.set_settings({message, addLocation, secondsToWait, idleMinutes});
             ToastAndroid.showWithGravity('Settings saved successfully', ToastAndroid.LONG, ToastAndroid.CENTER)
         }catch (e) {
-            Alert.alert('Error', 'There was a problem saving the settings, please try again!')
+            Alert.alert('Error', 'There was a problem saving the settings, please try again!' + `\n${e.message}`)
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -48,6 +55,7 @@ export default function Settings() {
 
     return (
         <View style={{flex: 1, paddingVertical: 20, alignItems: 'center'}}>
+            <LoadingModal visible={isSaving}/>
             <Text style={{fontSize: 25, marginBottom: 20}}>Settings</Text>
 
             <SettingsSection title="Message">

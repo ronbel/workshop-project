@@ -29,7 +29,7 @@ export default function TimerModal({visible, onFalseAlarmPress}) {
 
 
     return(
-        <Modal presentationStyle="overFullScreen" animationType="fade" visible={visible} onRequestClose={() => {}}>
+        <Modal presentationStyle="overFullScreen" transparent animationType="fade" visible={visible} onRequestClose={() => {}}>
             <View style={styles.container}>
                 <View style={styles.box}>
                     <Text style={{fontSize: 20}}>Is Everything OK?</Text>
