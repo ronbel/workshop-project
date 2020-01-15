@@ -1,8 +1,9 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {View, Text, TextInput, StyleSheet, Switch, ActivityIndicator, Button, Alert, ToastAndroid} from 'react-native';
 import SettingsSection from '../components/SettingsSection';
 import NumericInput from 'react-native-numeric-input';
 import Storage from '../services/storage-service';
+import ModalDropdown from 'react-native-modal-dropdown';
 
 
 export default function Settings() {
@@ -10,12 +11,15 @@ export default function Settings() {
     const [message, setMessage] = useState('');
     const [addLocation, setAddLocation] = useState(false);
     const [secondsToWait, setSecondsToWait] = useState(5);
+    const [idleMinutes, setIdleMinutes] = useState(30);
+
 
     useEffect(() => {
         Storage.get_settings().then(res => {
             setMessage(res.message);
             setAddLocation(res.addLocation);
             setSecondsToWait(res.secondsToWait);
+            setIdleMinutes(res.idleMinutes);
             setIsReady(true);
         })
     }, []);
@@ -26,7 +30,7 @@ export default function Settings() {
             return;
         }
         try {
-            await Storage.set_settings({message, addLocation, secondsToWait});
+            await Storage.set_settings({message, addLocation, secondsToWait, idleMinutes});
             ToastAndroid.showWithGravity('Settings saved successfully', ToastAndroid.LONG, ToastAndroid.CENTER)
         }catch (e) {
             Alert.alert('Error', 'There was a problem saving the settings, please try again!')
@@ -64,6 +68,11 @@ export default function Settings() {
                 </Text>
 
                 <NumericInput valueType="integer" value={secondsToWait} initValue={secondsToWait} onChange={setSecondsToWait} minValue={2} maxValue={60} type="plus-minus"/>
+            </SettingsSection>
+
+            <SettingsSection title="Idle Time">
+                <Text style={{width: 200}}>Minutes with no movement to wait until message is sent</Text>
+                <ModalDropdown showsVerticalScrollIndicator={false} onSelect={(index, value) => setIdleMinutes(value)} dropdownStyle={{transform:[{translateX: 40}]}} defaultValue={idleMinutes} textStyle={{width: '100%', height: '100%', fontSize: 20, textAlignVertical: 'center'}} style={{borderWidth: 1, height: 40, width: 100, justifyContent: 'center', alignItems: 'center'}} options={[15,30,60,90,120]}/>
             </SettingsSection>
 
 

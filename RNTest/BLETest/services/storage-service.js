@@ -4,6 +4,7 @@ const DEFAULT_SETTINGS = {
     message: 'Help me, I am in trouble!',
     addLocation: false,
     secondsToWait: 7,
+    idleMinutes: 30
 };
 
 export default class StorageService {
