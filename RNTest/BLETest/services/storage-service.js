@@ -2,7 +2,7 @@ import {AsyncStorage} from 'react-native';
 
 const DEFAULT_SETTINGS = {
     message: 'Help me, I am in trouble!',
-    addLocation: false,
+    addLocation: true,
     secondsToWait: 7,
     idleMinutes: 30
 };

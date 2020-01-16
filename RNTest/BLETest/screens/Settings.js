@@ -80,7 +80,7 @@ export default function Settings() {
 
             <SettingsSection title="Idle Time">
                 <Text style={{width: 200}}>Minutes with no movement to wait until message is sent</Text>
-                <ModalDropdown showsVerticalScrollIndicator={false} onSelect={(index, value) => setIdleMinutes(value)} dropdownStyle={{transform:[{translateX: 40}]}} defaultValue={idleMinutes} textStyle={{width: '100%', height: '100%', fontSize: 20, textAlignVertical: 'center'}} style={{borderWidth: 1, height: 40, width: 100, justifyContent: 'center', alignItems: 'center'}} options={[15,30,60,90,120]}/>
+                <ModalDropdown showsVerticalScrollIndicator={false} onSelect={(index, value) => setIdleMinutes(value)} dropdownStyle={{transform:[{translateX: 40}]}} defaultValue={idleMinutes} textStyle={{width: '100%', height: '100%', fontSize: 20, textAlignVertical: 'center'}} style={{borderWidth: 1, height: 40, width: 100, justifyContent: 'center', alignItems: 'center'}} options={[15,30,60,90,120,180,240]}/>
             </SettingsSection>
 
 
