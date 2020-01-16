@@ -242,7 +242,7 @@ int8_t rslt;
 struct bmi160_sensor_data accel; //  IF WE USE GYROSCOPE - DEFINE SIMILAR IDENTIFIER FOR GYRO
 struct bmi160_int_settg int_config;
 
-int num_idle_minutes = DEFAULT_NUM_IDLE_MINUTES; // allowed num of idle minutes before entering panic state
+uint8_t num_idle_minutes = DEFAULT_NUM_IDLE_MINUTES; // allowed num of idle minutes before entering panic state
 int curr_num_idle_seconds = 0;
 
 int idle = 0;
@@ -263,6 +263,10 @@ int num_of_cycles_since_fall = 0;
 I2C_Params params;
 
 #define CANCEL_PANIC 7
+
+
+uint8_t curr_value_of_char1;
+uint8_t old_value_of_char1 = 1;
 
 /*  BMI160  */
 
@@ -1427,7 +1431,6 @@ static void SimpleBLEPeripheral_performPeriodicTask(void)
 #ifndef FEATURE_OAD_ONCHIP
 
     int8_t x, y, z;
-    uint8_t curr_value_of_char1;
 
     rslt = bmi160_get_sensor_data(BMI160_ACCEL_SEL, &accel, NULL, &sensor);
     if (rslt == BMI160_OK){
@@ -1471,7 +1474,7 @@ static void SimpleBLEPeripheral_performPeriodicTask(void)
                 num_of_cycles_since_fall++;
             }
         }
-        else{ // got back up
+        if (y>=8){ // got back up
             num_of_cycles_since_fall = 0;
         }
     }
@@ -1489,8 +1492,9 @@ static void SimpleBLEPeripheral_performPeriodicTask(void)
     // Check whether char1 value changed, meaning that the app wrote a new value for the num
     // of idle minutes
     if ( SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR1, &curr_value_of_char1) == SUCCESS ){
-        if (curr_value_of_char1 != 1){
+        if (curr_value_of_char1 != old_value_of_char1){
             num_idle_minutes = curr_value_of_char1;
+            old_value_of_char1 = curr_value_of_char1;
             curr_num_idle_seconds = 0; // start counting from the beginning
         }
     }
