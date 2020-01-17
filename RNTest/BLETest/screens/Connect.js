@@ -1,5 +1,5 @@
 import React, {useContext, useEffect, useState} from 'react';
-import {ActivityIndicator, Alert, Button, Text, View} from 'react-native';
+import {ActivityIndicator, Alert, Button, Text, View, Image, StyleSheet} from 'react-native';
 import BLE from '../services/ble-service';
 import {ModalContext} from '../components/TimerModal';
 
@@ -49,11 +49,12 @@ export default function Connect() {
             <View style={{paddingHorizontal: 30}}>
                 {
                     found ? <View>
-                            <Text style={{textAlign: 'center', marginBottom: 15}}>{isConnected ? 'Your phone is connected and will react to pushes of the alarm button' : 'We have found your device, would you like to connect to it?'}</Text>
+                            {isConnected && <Image style={{height: 200, width: 200, alignSelf: 'center', marginBottom: 20}} source={require('../assets/images/phone-connected.png')}/>}
+                            <Text style={styles.text}>{isConnected ? 'Your phone is connected and will react to pushes of the alarm button' : 'We have found your device, would you like to connect to it?'}</Text>
                             {!isConnected && <Button onPress={listenToDevice} title="Yes, Connect Me!"/>}
                         </View> :
                         !blueError && <View>
-                            <Text>We are looking for devices</Text>
+                            <Text style={styles.text}>We are looking for devices</Text>
                             <ActivityIndicator size="large"/>
                         </View>
                 }
@@ -65,3 +66,8 @@ export default function Connect() {
         </View>
     )
 }
+
+
+const styles = StyleSheet.create({
+    text: {fontFamily: 'monospace',textAlign: 'center', marginBottom: 15}
+})
